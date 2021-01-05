@@ -150,7 +150,7 @@ module mycpu_top(
 	assign data_sram_write = MemWriteD; // 0 read, 1 write
 	assign data_sram_wen = Sel;
 	assign data_sram_addr = aluoutM[31] ? {3'b0, aluoutM[28:0]} : aluoutM;
-	assign data_sram_wdata = 32'b0;;
+	assign data_sram_wdata = 32'b0;
 	assign readdataM = data_sram_rdata; // use your own signal from M stage
 
 	//assign the trace parameters
