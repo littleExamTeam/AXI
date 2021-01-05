@@ -94,9 +94,34 @@ module mycpu_top(
 	// also use some of them  link the IPcores
 	wire rst,clk;
 	// fetch stage
-	wire[31:0] pcF;
-	wire[31:0] instrF;
-
+	wire[31:0] PCF;
+	wire[31:0] InstF;
+	wire[5:0]  Op; 
+	wire[5:0]  Funct;
+	wire[4:0]  Rt, Rs;
+	wire JumpD;
+	wire RegWriteD;
+	wire RegDstD;
+	wire ALUSrcAD;
+	wire[1:0] ALUSrcBD;
+	wire BranchD;
+	wire[1:0] MemWriteD;
+	wire[1:0] DatatoRegD;
+	wire HIWrite;
+	wire LOWrite;
+	wire[1:0] DataToHID;
+	wire[1:0] DataToLOD;
+	wire SignD;
+	wire StartDivD;
+	wire AnnulD;
+	wire[7:0] ALUControlD;
+	wire JalD;
+	wire JrD;
+	wire BalD;
+	wire NoInst;
+	wire Cp0Write;
+	wire Cp0Read;
+	
 	// decode stage
 	wire [31:0] instrD;
 	wire pcsrcD,jumpD,jalD,jrD,balD,jalrD,branchD,equalD,invalidD;
@@ -113,15 +138,16 @@ module mycpu_top(
 	wire[31:0] aluoutM,writedata2M,excepttypeM;
 	wire cp0weM;
 	wire[31:0] readdataM;
-	wire [3:0] sel;
+	wire [3:0] Sel;
 	wire memtoregM,regwriteM;
 	wire stallM,flushM;
 
+
 	// writeback stage
-	wire memtoregW,regwriteW;
-	wire [31:0] pcW;
-	wire [4:0] writeregW;
-	wire [31:0] resultW;
+	wire memtoregW,RegWriteW;
+	wire [31:0] PCW;
+	wire [4:0] WriteRegW;
+	wire [31:0] FinalResultW;
 	wire flushW;
 
 
