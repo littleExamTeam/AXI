@@ -10,8 +10,9 @@
 //6.int_i 这里是硬件中�???????
 
 module datapath(
-    input wire clk, rst,
-
+    input  wire clk, rst,
+    input  wire FetchStall, MemoryStall,
+    output wire LongestStall,
     //-----fetch stage-------------------------------
     //--to sram--
     output wire[31:0] PCF,
@@ -471,6 +472,8 @@ mux3 #(32) DatatoLOMux  (ALUOutW, MultLOW, DivLOW, DatatoLOW, LOIn);
 
 //hazard
 hazard h(
+    FetchStall, MemoryStall,
+    LongestStall,
     //fetch stage
     StallF, FlushF,
     //decode stage

@@ -24,7 +24,7 @@ module mycpu_top(
 	input wire[5:0] int,
 	input wire aclk,aresetn,
 	
-	 // axi port
+	// axi port
     //ar
     output wire[3:0] arid,      //read request id, fixed 4'b0
     output wire[31:0] araddr,   //read request address
@@ -77,247 +77,139 @@ module mycpu_top(
 
 	//sram signal
 	//cpu inst sram
-	wire        inst_sram_en;
-	wire [3 :0] inst_sram_wen;
-	wire [31:0] inst_sram_addr;
-	wire [31:0] inst_sram_wdata;
-	wire [31:0] inst_sram_rdata;
+	wire        inst_sram_en	;
+	wire [3 :0] inst_sram_wen	;
+	wire [31:0] inst_sram_addr	;
+	wire [31:0] inst_sram_wdata	;
+	wire [31:0] inst_sram_rdata	;
+	wire 		fetch_stall		;
+	wire 		longest_stall_f	;
 	//cpu data sram
-	wire        data_sram_en,data_sram_write;
-	wire [1 :0] data_sram_size;
-	wire [3 :0] data_sram_wen;
-	wire [31:0] data_sram_addr;
-	wire [31:0] data_sram_wdata;
-	wire [31:0] data_sram_rdata;
+	wire        data_sram_en	;
+	wire [3 :0] data_sram_wen	;
+	wire [31:0] data_sram_addr	;
+	wire [31:0] data_sram_wdata	;
+	wire [31:0] data_sram_rdata	;
+	wire 		memory_stall	;
+	wire 		longest_stall_m	;
+	//axi signal
+	//cpu inst axi
+	wire		inst_req	;
+	wire		inst_wr		;
+	wire [1 :0]	inst_size	;
+	wire [31:0]	inst_addr	;
+	wire [31:0]	inst_wdata	;
+	wire [31:0]	inst_rdata	;
+	wire		inst_addr_ok;
+	wire		inst_data_ok;
 
-	// the follow definitions are between controller and datapath.
-	// also use some of them  link the IPcores
-	wire rst,clk;
-	// fetch stage
-	wire[31:0] PCF;
-	wire[31:0] InstF;
-	wire[5:0]  Op; 
-	wire[5:0]  Funct;
-	wire[4:0]  Rt, Rs;
-	wire JumpD;
-	wire RegWriteD;
-	wire RegDstD;
-	wire ALUSrcAD;
-	wire[1:0] ALUSrcBD;
-	wire BranchD;
-	wire[1:0] MemWriteD;
-	wire[1:0] DatatoRegD;
-	wire HIWrite;
-	wire LOWrite;
-	wire[1:0] DataToHID;
-	wire[1:0] DataToLOD;
-	wire SignD;
-	wire StartDivD;
-	wire AnnulD;
-	wire[7:0] ALUControlD;
-	wire JalD;
-	wire JrD;
-	wire BalD;
-	wire NoInst;
-	wire Cp0Write;
-	wire Cp0Read;
+	//cpu data axi
+	wire		data_req	;
+	wire		data_wr		;
+	wire [1 :0]	data_size	;
+	wire [31:0]	data_addr	;
+	wire [31:0]	data_wdata	;
+	wire [31:0]	data_rdata	;
+	wire		data_addr_ok;
+	wire		data_data_ok;
+
+	wire clk;
+	wire rst;
+	assign clk = ~aclk;
+	assign rst = ~aresetn;
+
+	sram_mips mips(
+    	.clk              (clk   	),
+    	.resetn           (rst	),  //low active
+    	.int              (6'd0		),  //interrupt,high active
+
+    	.inst_sram_en     (inst_sram_en		),
+    	.inst_sram_wen    (inst_sram_wen	),
+    	.inst_sram_addr   (inst_sram_addr	),
+    	.inst_sram_wdata  (inst_sram_wdata	),
+    	.inst_sram_rdata  (inst_sram_rdata	),
+		.fetch_stall	  (fetch_stall		),
+		.longest_stall_f  (longest_stall_f	),
 	
-	// decode stage
-	wire [31:0] instrD;
-	wire pcsrcD,jumpD,jalD,jrD,balD,jalrD,branchD,equalD,invalidD;
-	wire [1:0] hilo_weD;
-	wire [4:0] alucontrolD;
+    	.data_sram_en     (data_sram_en		),
+    	.data_sram_wen    (data_sram_wen	),
+    	.data_sram_addr   (data_sram_addr	),
+    	.data_sram_wdata  (data_sram_wdata	),
+    	.data_sram_rdata  (data_sram_rdata	),
+		.memory_stall	  (memory_stall		),
+		.longest_stall_m  (longest_stall_m	),
 
-	// execute stage
-	wire regdstE,alusrcE;
-	wire memtoregE,regwriteE;
-	wire flushE,stallE;
-
-	// mem stage
-	wire memwriteM,memenM;
-	wire[31:0] aluoutM,writedata2M,excepttypeM;
-	wire cp0weM;
-	wire[31:0] readdataM;
-	wire [3:0] Sel;
-	wire memtoregM,regwriteM;
-	wire stallM,flushM;
-
-
-	// writeback stage
-	wire memtoregW,RegWriteW;
-	wire [31:0] PCW;
-	wire [4:0] WriteRegW;
-	wire [31:0] FinalResultW;
-	wire flushW;
-
-
-	//cache mux signal
-	wire cache_miss,sel_i;
-	wire[31:0] i_addr,d_addr,m_addr;
-	wire m_fetch,m_ld_st,mem_access;
-	wire mem_write,m_st;
-	wire mem_ready,m_i_ready,m_d_ready,i_ready,d_ready;
-	wire[31:0] mem_st_data,mem_data;
-	wire[1:0] mem_size,d_size;// size not use
-	wire[3:0] m_sel,d_wen;
-	wire stallreq_from_if,stallreq_from_mem;
-
-
-
-	// assign the inst_sram_parameters
-	assign inst_sram_en = 1'b1; //always strobe
-	assign inst_sram_wen = 4'b0; // always read
-	assign inst_sram_addr = PCF; // pc
-	assign inst_sram_wdata = 32'b0; // do not need write operation
-	assign instrF = inst_sram_rdata; // use your own signal from F stage
-
-	//assign the data_sram_parameters
-	assign data_sram_en = MemEn;// notice: disable the data strobe when exceptions occur
-	assign data_sram_write = MemWriteD; // 0 read, 1 write
-	assign data_sram_wen = Sel;
-	assign data_sram_addr = aluoutM[31] ? {3'b0, aluoutM[28:0]} : aluoutM;
-	assign data_sram_wdata = 32'b0;
-	assign readdataM = data_sram_rdata; // use your own signal from M stage
-
-	//assign the trace parameters
-	assign debug_wb_pc = PCW;
-	assign debug_wb_rf_wen = {4{RegWriteW}};
-	assign debug_wb_rf_wnum = WriteRegW;
-	assign debug_wb_rf_wdata = FinalResultW;
-
-	// these modules use your own
-	controller c(
-		.Op(Op), 
-		.Funct(Funct),
-		.rt(Rt), .rs(Rs),
-		.Jump(JumpD), 
-		.RegWrite(RegWriteD), 
-		.RegDst(RegDstD), 
-		.ALUSrcA(ALUSrcAD), 
-		.ALUSrcB(ALUSrcBD), 
-		.Branch(BranchD), 
-		.MemWrite(MemWriteD), 
-		.DatatoReg(DatatoRegD), 
-		.HIwrite(HIWrite), 
-		.LOwrite(LOWrite),
-		.DataToHI(DatatoHID), 
-		.DataToLO(DatatoLOD), 
-		.Sign(SignD), 
-		.startDiv(StartDivD), 
-		.annul(AnnulD),
-		.ALUContr(ALUControlD),
-		.jal(JalD), 
-		.jr(JrD), 
-		.bal(BalD),
-		.Invalid(NoInst),
-		.cp0Write(Cp0Write),
-		.cp0Read(Cp0Read)
+    	//debug
+    	.debug_wb_pc      (debug_wb_pc      ),
+    	.debug_wb_rf_wen  (debug_wb_rf_wen  ),
+    	.debug_wb_rf_wnum (debug_wb_rf_wnum ),
+    	.debug_wb_rf_wdata(debug_wb_rf_wdata)
 	);
 
-
-
-	datapath dp(
-		.clk(aclk), .rst(~aresetn),
-		.PCF(PCF), .InstF(InstF),
-		
-		.Op(Op), .Funct(Funct),
-		.Rt(Rt), .Rs(Rs),
-		.RegWriteD(RegWriteD),
-		.DatatoRegD(DatatoRegD),
-		.MemWriteD(MemWriteD),
-		.ALUControlD(ALUControlD),
-		.ALUSrcAD(ALUSrcAD),
-		.ALUSrcBD(ALUSrcBD),
-		.RegDstD(RegDstD),
-		.JumpD(JumpD),
-		.BranchD(BranchD),
-
-		.JalD(JalD),
-		.JrD(JrD),
-		.BalD(BalD),
-
-		.HIWriteD(HIWrite),
-		.LOWriteD(LOWrite),
-		.DatatoHID(DatatoHID),
-		.DatatoLOD(DatatoLOD),
-		.SignD(SignD),
-		.StartDivD(StartDivD),
-		.AnnulD(AnnulD),
-
-		.NoInstD(NoInst),
-		.Cp0WriteD(Cp0Write),
-		.Cp0ReadD(Cp0Read),
-		//--to sram--
-		.MemEn(MemEn),
-		.Sel(Sel),
-		.ALUOutM(aluoutM),
-		.WriteDataM(WriteDataM),
-		.ReadDataM(ReadDataM),
-		//--to sram--
-		.PCW(PCW),
-		.RegWriteW(RegWriteW),
-		.WriteRegW(WriteRegW),
-		.FinalResultW(FinalResultW)
+	d_sram2sraml inst_bridge(
+    	.clk(clk),
+		.rst(rst),
+    	//sram
+    	.data_sram_en   (inst_sram_en		),
+    	.data_sram_wen  (inst_sram_wen		),
+    	.data_sram_addr (inst_sram_addr		),
+    	.data_sram_rdata(inst_sram_rdata	),
+    	.data_sram_wdata(inst_sram_wdata	),
+    	.d_stall		(fetch_stall		),
+    	.longest_stall	(longest_stall_f	),
+    	//sram_like
+    	.data_req		(inst_req		),
+    	.data_wr		(inst_wr		),
+    	.data_size		(inst_size		),
+    	.data_addr		(inst_addr		),
+    	.data_wdata		(inst_wdata		),
+    	.data_rdata		(inst_rdata		),
+    	.data_addr_ok	(inst_addr_ok	),
+    	.data_data_ok	(inst_data_ok	)
 	);
-	
+	d_sram2sraml data_bridge(
+    	.clk(clk),
+		.rst(rst),
+    	//sram
+    	.data_sram_en   (data_sram_en		),
+    	.data_sram_wen  (data_sram_wen		),
+    	.data_sram_addr (data_sram_addr		),
+    	.data_sram_rdata(data_sram_rdata	),
+    	.data_sram_wdata(data_sram_wdata	),
+    	.d_stall		(memory_stall		),
+    	.longest_stall	(longest_stall_m	),
+    	//sram_like
+    	.data_req		(data_req		),
+    	.data_wr		(data_wr		),
+    	.data_size		(data_size		),
+    	.data_addr		(data_addr		),
+    	.data_wdata		(data_wdata		),
+    	.data_rdata		(data_rdata		),
+    	.data_addr_ok	(data_addr_ok	),
+    	.data_data_ok	(data_data_ok	)
+	);
 
-	// use a inst_miss signal to denote that the instruction is not loadssss
-	reg inst_miss;
-	always @(posedge clk) begin
-		if (~aresetn) begin
-			inst_miss <= 1'b1;
-		end
-		if (m_i_ready & inst_miss) begin // fetch instruction ready
-			inst_miss <= 1'b0;
-		end else if (~inst_miss & data_sram_en) begin // fetch instruction ready, but need load data, so inst_miss maintain 0
-			inst_miss <= 1'b0;
-		end else if (~inst_miss & data_sram_en & m_d_ready) begin //load data ready, set inst_miss to 1
-			inst_miss <= 1'b1;
-		end else begin // other conditions, set inst_miss to 1
-			inst_miss <= 1'b1;
-		end
-	end
+	cpu_axi_interface interface(
+		.clk		(aclk		),
+		.resetn		(aresetn		),
 
-	assign sel_i = inst_miss;	// use inst_miss to select access memory(for load/store) or fetch(each instruction)
-	assign d_addr = (data_sram_addr[31:16] != 16'hbfaf) ? data_sram_addr : {16'h1faf,data_sram_addr[15:0]}; // modify data address, to get the data from confreg
-	assign i_addr = inst_sram_addr;
-	assign m_addr = sel_i ? i_addr : d_addr;
-	// 
-	assign m_fetch = inst_sram_en & inst_miss; //if inst_miss equals 0, disable the fetch strobe
-	assign m_ld_st = data_sram_en;
+		.inst_req		(inst_req	 ),
+		.inst_wr		(inst_wr	 ),
+		.inst_size		(inst_size	 ),
+		.inst_addr		(inst_addr	 ),
+		.inst_wdata		(inst_wdata	 ),
+		.inst_rdata		(inst_rdata	 ),
+		.inst_addr_ok	(inst_addr_ok),
+		.inst_data_ok	(inst_data_ok),
 
-	assign inst_sram_rdata = mem_data;
-	assign data_sram_rdata = mem_data;
-	assign mem_st_data = data_sram_wdata;
-	// use select signal
-	assign mem_access = sel_i ? m_fetch : m_ld_st; 
-	assign mem_size = sel_i ? 2'b10 : data_sram_size;
-	assign m_sel = sel_i ? 4'b1111 : data_sram_wen;
-	assign mem_write = sel_i ? 1'b0 : data_sram_write;
-
-	//demux
-	assign m_i_ready = mem_ready & sel_i;
-	assign m_d_ready = mem_ready & ~sel_i;
-
-	//
-	assign stallreq_from_if = ~m_i_ready;
-	assign stallreq_from_mem = data_sram_en & ~m_d_ready;
-
-	axi_interface interface(
-		.clk(aclk),
-		.resetn(aresetn),
-		
-		 //cache/cpu_core port
-		.mem_a(m_addr),
-		.mem_access(mem_access),
-		.mem_write(mem_write),
-		.mem_size(mem_size),
-		.mem_sel(m_sel),
-		.mem_ready(mem_ready),
-		.mem_st_data(mem_st_data),
-		.mem_data(mem_data),
-		// add a input signal 'flush', cancel the memory accessing operation in axi_interface, do not need any extra design. 
-		.flush(|excepttypeM), // use excepetion type
+		.data_req		(data_req	 ),
+		.data_wr		(data_wr	 ),
+		.data_size		(data_size	 ),
+		.data_addr		(data_addr	 ),
+		.data_wdata		(data_wdata	 ),
+		.data_rdata		(data_rdata	 ),
+		.data_addr_ok	(data_addr_ok),
+		.data_data_ok	(data_data_ok),
 
 		.arid      (arid      ),
 		.araddr    (araddr    ),

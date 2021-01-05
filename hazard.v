@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
 module hazard(
+    input  wire FetchStall, MemoryStall,
+    output wire LongestStall,
     //fetch stage
     output wire StallF, FlushF,
 
@@ -232,11 +234,14 @@ assign JumpStallD = ~ExceptSignal & JrD & (RegWriteE & WriteRegE == RsD |
 
 assign DivStall = ~ExceptSignal & StartDivE & ~DivReadyE;
 
-assign StallD = LwStallD | BranchStallD | JumpStallD | DivStall | Cp0StallD;
 assign StallF = StallD;
-assign StallE = DivStall;
-assign StallM = 1'b0;
-assign StallW = 1'b0;
+assign StallD = LwStallD | BranchStallD | JumpStallD | 
+                DivStall | Cp0StallD | FetchStall | MemoryStall;
+assign StallE = DivStall | FetchStall | MemoryStall;
+assign StallM = FetchStall | MemoryStall;
+assign StallW = FetchStall | MemoryStall;
+
+assign LongestStall = StallF | StallD | StallE | StallM | StallW;
 
 assign FlushF = ExceptSignal;
 assign FlushD = ExceptSignal;
