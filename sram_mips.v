@@ -53,6 +53,7 @@ wire        AnnulD;
 wire        NoInst;
 wire        Cp0Write, Cp0Read;
 
+wire [31:0] InstD;
 wire [5:0] Op;
 wire [5:0] Funct;
 wire [4:0] Rt, Rs;
@@ -64,16 +65,16 @@ wire [3:0]  Sel;
 wire [31:0] ALUOutM, WriteDataM, ReadDataM;
 
 wire        RegWriteW;
+wire        StallW;
 wire [4:0]  WriteRegW;
 wire [31:0] PCW, FinalResultW;
+wire        ExceptSignal;
 
 wire [39:0] ascii;
 instdec id(InstF, ascii);
 
 controller c(
-    .Op(Op), 
-    .Funct(Funct),
-    .rt(Rt), .rs(Rs),
+    .InstD(InstD),
     .Jump(JumpD), 
     .RegWrite(RegWriteD), 
     .RegDst(RegDstD), 
@@ -107,8 +108,7 @@ datapath dp(
 
     .PCF(PCF), .InstF(InstF),
     
-    .Op(Op), .Funct(Funct),
-    .Rt(Rt), .Rs(Rs),
+    .InstD(InstD),
     .RegWriteD(RegWriteD),
     .DatatoRegD(DatatoRegD),
     .MemWriteD(MemWriteD),
@@ -144,15 +144,18 @@ datapath dp(
     .PCW(PCW),
     .RegWriteW(RegWriteW),
     .WriteRegW(WriteRegW),
-    .FinalResultW(FinalResultW)
+    .FinalResultW(FinalResultW),
+    .StallW(StallW),
+    .ExceptSignal(ExceptSignal)
 );
 
-always@(posedge clk) begin
+always@(negedge clk) begin
     if(resetn)
-        inst_sram_en = 1'b0;
+        inst_sram_en <= 1'b0;
     else
-        inst_sram_en = 1'b1;
+        inst_sram_en <= 1'b1;
 end
+
 // assign inst_sram_en     = 1'b1;
 assign inst_sram_wen    = 4'b0000;
 assign inst_sram_addr   = PCF[31] ? {3'b0, PCF[28:0]} : PCF;
@@ -169,7 +172,7 @@ assign ReadDataM        = data_sram_rdata;
 assign longest_stall_m  = longest_stall;
 
 assign debug_wb_pc             = PCW;
-assign debug_wb_rf_wen         = {4{RegWriteW}};
+assign debug_wb_rf_wen         = {4{RegWriteW & ~StallW & ~ExceptSignal}}; // & ~StallW & ~ExceptSignal
 assign debug_wb_rf_wnum        = WriteRegW;
 assign debug_wb_rf_wdata       = FinalResultW;
 

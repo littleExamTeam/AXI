@@ -13,10 +13,8 @@ module hazard(
     input wire JrD,
 
     output wire StallD, FlushD,
-    output wire ForwardAD, ForwardBD, ForwardJrD,
-    output reg  [1:0] ForwardHILOAED, ForwardHILOAMD,
-    output reg  [1:0] ForwardHILOBED, ForwardHILOBMD,
-    output reg  [1:0] ForwardHILOJED, ForwardHILOJMD,
+    output reg [1:0] ForwardRsED, ForwardRsMD,
+    output reg [1:0] ForwardRtED, ForwardRtMD,
     //output reg [1:0] ForwardALD,
 
     //excute stage
@@ -33,9 +31,9 @@ module hazard(
     input wire Cp0ReadE,
 
     output wire FlushE, StallE,
-    output reg [1:0] ForwardAE, ForwardBE,
-    output reg [1:0] ForwardHIE, ForwardLOE,
-    output reg [1:0] ForwardMultE, ForwardDivE,
+    output reg [1:0] ForwardRsME, ForwardRsWE,
+    output reg [1:0] ForwardRtME, ForwardRtWE,
+    output reg [1:0] ForwardHIE , ForwardLOE,
     //------------------------
 
     //mem stage
@@ -69,150 +67,127 @@ module hazard(
     //------------------------
 );
 
+
 wire LwStallD, BranchStallD, JumpStallD, DivStall, Cp0StallD;
 wire MemtoRegD, MemtoRegE, MemtoRegM, MemtoRegW;
 
 //decode stage forwarding
-assign ForwardAD  = (RsD != 0 & RsD == WriteRegM & RegWriteM);
-assign ForwardBD  = (RtD != 0 & RtD == WriteRegM & RegWriteM);
-assign ForwardJrD = (RsD != 0 & RsD == WriteRegM & RegWriteM);
-
-//excute stage forwarding
 always @(*) begin
-    ForwardAE = 2'b00;
-    ForwardBE = 2'b00;
+    ForwardRsED = 2'b00;
+    ForwardRsMD = 2'b00;
 
-    ForwardHIE = 2'b00; 
-    ForwardLOE = 2'b00;
+    ForwardRtED = 2'b00;
+    ForwardRtMD = 2'b00;
 
-    ForwardMultE = 2'b00; 
-    ForwardDivE  = 2'b00;
-    
-    ForwardHILOAED = 2'b00;
-    ForwardHILOAMD = 2'b00;
-
-    ForwardHILOBED = 2'b00;
-    ForwardHILOBMD = 2'b00;
-
-    ForwardHILOJED = 2'b00;
-    ForwardHILOJMD = 2'b00;
-
-
-    if(RsE != 0 & ~Cp0ReadM & ~Cp0ReadW) begin
-        if(RsE == WriteRegM & RegWriteM)begin
-            ForwardAE = 2'b10;
-        end
-        else if(RsE == WriteRegW & RegWriteW)begin
-            ForwardAE = 2'b01;
-        end
-    end
-    if(RtE != 0 & ~Cp0ReadM & ~Cp0ReadW) begin
-        if(RtE == WriteRegM & RegWriteM)begin
-            ForwardBE = 2'b10;
-        end
-        else if(RtE == WriteRegW & RegWriteW)begin
-            ForwardBE = 2'b01;
-        end
-    end
-    //add datamove inst oprand
-    //forwarding HI
-    if(DatatoRegE == 2'b10 & HIWriteM == 1'b1)begin
-        ForwardHIE = 2'b01;
-    end
-    else if(DatatoRegE == 2'b10 & HIWriteW == 1'b1)begin
-        ForwardHIE = 2'b10;
-    end
-    //forwarding LO
-    if(DatatoRegE == 2'b01 & LOWriteM == 1'b1)begin
-        ForwardLOE = 2'b01;
-    end
-    else if(DatatoRegE == 2'b01 & LOWriteW == 1'b1)begin
-        ForwardLOE = 2'b10;
-    end
-    //forwarding mult div result
-    //mult
-    if( (DatatoRegE == 2'b10 | DatatoRegE == 2'b01) & 
-            RegWriteE == 1'b1 & DatatoHIM == 2'b01  &
-            DatatoLOM == 2'b01)begin
-        ForwardMultE = 2'b01;
-    end
-    else if((DatatoRegE == 2'b10 | DatatoRegE == 2'b01) & 
-                RegWriteE == 1'b1 & DatatoHIW == 2'b01  & 
-                DatatoLOW == 2'b01)begin
-        ForwardMultE = 2'b10;
-    end
-    //div
-    if( (DatatoRegE == 2'b10 | DatatoRegE == 2'b01) & 
-            RegWriteE == 1'b1 & DatatoHIM == 2'b10  &
-            DatatoLOM == 2'b10)begin
-        ForwardDivE = 2'b01;
-    end
-    else if((DatatoRegE == 2'b10 | DatatoRegE == 2'b01) & 
-                RegWriteE == 1'b1 & DatatoHIW == 2'b10  &
-                DatatoLOW == 2'b10)begin
-        ForwardDivE = 2'b10;
-    end
-    //forwarding hilo to branch or jump
     if(RsD != 0) begin
-        //e stage
-        if(RsD == WriteRegE & RegWriteE)begin
-            //read hi
-            if(DatatoRegE == 2'b10)begin
-                ForwardHILOAED = 2'b01;
-                ForwardHILOJED = 2'b01;
-            end
-            //read lo
-            else if(DatatoRegE == 2'b01)begin
-                ForwardHILOAED = 2'b10;
-                ForwardHILOJED = 2'b10;
-            end
-        end 
-        //m stage
-        else if(RsD == WriteRegM & RegWriteM)begin
-            //read hi
-            if(DatatoRegM == 2'b10)begin
-                ForwardHILOAMD = 2'b01;
-                ForwardHILOJMD = 2'b01;
-            end
-            //read lo
-            else if(DatatoRegM == 2'b01)begin
-                ForwardHILOAMD = 2'b10;
-                ForwardHILOJMD = 2'b10;
-            end
+        if(RsD == WriteRegE & RegWriteE) begin
+            case(DatatoRegE)
+                2'b00: ForwardRsED = 2'b01;     //Rs from alu
+                2'b10: ForwardRsED = 2'b10;     //Rs from hi
+                2'b01: ForwardRsED = 2'b11;     //Rs from lo
+                default: ForwardRsED = 2'b00;
+            endcase
+        end
+        if(RsD == WriteRegM & RegWriteM) begin
+            case(DatatoRegM)
+                2'b00: ForwardRsMD = 2'b01;     //Rs from alu
+                2'b10: ForwardRsMD = 2'b10;     //Rs from hi
+                2'b01: ForwardRsMD = 2'b11;     //Rs from lo
+                default: ForwardRsMD = 2'b00;
+            endcase
         end
     end
     if(RtD != 0) begin
-        //e stage
-        if(RtD == WriteRegE & RegWriteE)begin
-            //read hi
-            if(DatatoRegE == 2'b10)begin
-                ForwardHILOBED = 2'b01;
-            end
-            //read lo
-            else if(DatatoRegE == 2'b01)begin
-                ForwardHILOBED = 2'b10;
-            end
-        end 
-        //m stage
-        else if(RtD == WriteRegM & RegWriteM)begin
-            //raed hi
-            if(DatatoRegM == 2'b10)begin
-                ForwardHILOBMD = 2'b01;
-            end
-            //raed lo
-            else if(DatatoRegM == 2'b01)begin
-                ForwardHILOBMD = 2'b10;
-            end
+        if(RtD == WriteRegE & RegWriteE) begin
+            case(DatatoRegE)
+                2'b00: ForwardRtED = 2'b01;     //Rs from alu
+                2'b10: ForwardRtED = 2'b10;     //Rs from hi
+                2'b01: ForwardRtED = 2'b11;     //Rs from lo
+                default: ForwardRtED = 2'b00;
+            endcase
+        end
+        if(RtD == WriteRegM & RegWriteM) begin
+            case(DatatoRegM)
+                2'b00: ForwardRtMD = 2'b01;     //Rs from alu
+                2'b10: ForwardRtMD = 2'b10;     //Rs from hi
+                2'b01: ForwardRtMD = 2'b11;     //Rs from lo
+                default: ForwardRtMD = 2'b00;
+            endcase
         end
     end
-    //------------------------
-    //forwarding AL
-    // if(JrD == 1'b1 & JalE | BalE == 1'b1) begin
-    //     ForwardALD = 2'b01;
-    // end
-    // else if(JrD == 1'b1 & JalM | BalM == 1'b1) begin
-    //     ForwardALD = 2'b10;
-    // end
+end
+
+//excute stage forwarding
+always @(*) begin
+    
+    ForwardRsME = 2'b00;
+    ForwardRsWE = 2'b00;
+
+    ForwardRtME = 2'b00;
+    ForwardRtWE = 2'b00;
+    
+    ForwardHIE  = 2'b00;
+    ForwardLOE  = 2'b00; 
+    //forward rs
+    if(RsE != 0 & ~Cp0ReadM & ~Cp0ReadW) begin
+        //M2E
+        if(RsE == WriteRegM & RegWriteM) begin
+            case(DatatoRegM)
+                2'b00: ForwardRsME = 2'b01;     //Rs from alu
+                2'b10: ForwardRsME = 2'b10;     //Rs from hi
+                2'b01: ForwardRsME = 2'b11;     //Rs from lo
+                default: ForwardRsME = 2'b00;
+            endcase
+        end
+        //W2E
+        if(RsE == WriteRegW & RegWriteW) begin
+            case(DatatoRegW)
+                2'b00: ForwardRsWE = 2'b01;     //Rs from alu
+                2'b10: ForwardRsWE = 2'b10;     //Rs from hi
+                2'b01: ForwardRsWE = 2'b11;     //Rs from lo
+                2'b11: ForwardRsWE = 2'b01;     //Rs fron mem
+                default: ForwardRsWE = 2'b00;
+            endcase
+        end
+    end
+    //forward rt
+    if(RtE != 0 & ~Cp0ReadM & ~Cp0ReadW) begin
+        if(RtE == WriteRegM & RegWriteM) begin
+            case(DatatoRegM)
+                2'b00: ForwardRtME = 2'b01;     //Rs from alu
+                2'b10: ForwardRtME = 2'b10;     //Rs from hi
+                2'b01: ForwardRtME = 2'b11;     //Rs from lo
+                default: ForwardRtME = 2'b00;
+            endcase
+        end
+        if(RtE == WriteRegW & RegWriteW) begin
+            case(DatatoRegW)
+                2'b00: ForwardRtWE = 2'b01;     //Rs from alu
+                2'b10: ForwardRtWE = 2'b10;     //Rs from hi
+                2'b01: ForwardRtWE = 2'b11;     //Rs from lo
+                2'b11: ForwardRsWE = 2'b01;     //Rs from mem
+                default: ForwardRtWE = 2'b00;
+            endcase
+        end
+    end
+    //forward hi
+    if(DatatoRegE == 2'b10) begin
+        if(HIWriteM) begin
+            ForwardHIE = 2'b01;
+        end
+        else if(HIWriteW) begin
+            ForwardHIE = 2'b10;
+        end
+    end
+    //forward lo
+    if(DatatoRegE == 2'b01) begin
+        if(LOWriteM) begin
+            ForwardLOE = 2'b01;
+        end
+        else if(LOWriteW) begin
+            ForwardLOE = 2'b10;
+        end
+    end
 end
 
 assign MemtoRegD = DatatoRegD[1:1] & DatatoRegD[0:0];
@@ -221,31 +196,40 @@ assign MemtoRegM = DatatoRegM[1:1] & DatatoRegM[0:0];
 assign MemtoRegW = DatatoRegW[1:1] & DatatoRegW[0:0];
 
 //stalls
-assign LwStallD  = ~ExceptSignal & MemtoRegE & (RtE == RsD | RtE == RtD);
+assign LwStallD  = ~ExceptSignal & ((MemtoRegE & (RtE == RsD | RtE == RtD)) |
+                                   (MemtoRegM & (RtM == RsD | RtM == RtD)));
+
 assign Cp0StallD = ((Cp0ReadE  & (RtE == RsD | RtE == RtD)) |
                     (Cp0ReadM  & (RtM == RsD | RtM == RtD)));
 
-assign BranchStallD = ~ExceptSignal & BranchD & 
-        (RegWriteE & (WriteRegE == RsD | WriteRegE == RtD) |
-         MemtoRegM & (WriteRegM == RsD | WriteRegM == RtD));
+// assign BranchStallD = ~ExceptSignal & BranchD & 
+//         (RegWriteE & (WriteRegE == RsD | WriteRegE == RtD) |
+//          MemtoRegM & (WriteRegM == RsD | WriteRegM == RtD));
 
-assign JumpStallD = ~ExceptSignal & JrD & (RegWriteE & WriteRegE == RsD |
-                            MemtoRegM & WriteRegM == RsD);
+// assign JumpStallD = ~ExceptSignal & JrD & (RegWriteE & WriteRegE == RsD |
+//                             MemtoRegM & WriteRegM == RsD);
 
 assign DivStall = ~ExceptSignal & StartDivE & ~DivReadyE;
 
-assign StallF = StallD;
-assign StallD = LwStallD | BranchStallD | JumpStallD | 
-                DivStall | Cp0StallD | FetchStall | MemoryStall;
-assign StallE = DivStall | FetchStall | MemoryStall;
-assign StallM = FetchStall | MemoryStall;
-assign StallW = FetchStall | MemoryStall;
+assign LongestStall = DivStall | FetchStall | MemoryStall;
 
-assign LongestStall = StallF | StallD | StallE | StallM | StallW;
+// assign StallF = StallD;
+// assign StallD = LwStallD | DivStall | Cp0StallD | FetchStall | MemoryStall;
+// assign StallE = DivStall | FetchStall | MemoryStall;
+// assign StallM = FetchStall | MemoryStall;
+// assign StallW = FetchStall | MemoryStall;
+
+assign StallF = LongestStall | LwStallD | Cp0StallD;
+assign StallD = LongestStall | LwStallD | Cp0StallD;
+assign StallE = LongestStall;
+assign StallM = LongestStall;
+assign StallW = LongestStall;
+
+//assign LongestStall = StallF | StallD | StallE | StallM | StallW;
 
 assign FlushF = ExceptSignal;
 assign FlushD = ExceptSignal;
-assign FlushE = LwStallD | BranchStallD | JumpStallD | Cp0StallD | ExceptSignal;
+assign FlushE = (LwStallD | Cp0StallD | ExceptSignal) & ~LongestStall;
 assign FlushM = ExceptSignal;
 assign FlushW = ExceptSignal;
 
