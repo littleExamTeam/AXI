@@ -119,7 +119,7 @@ module mycpu_top(
 	assign rst = ~aresetn;
 
 	sram_mips mips(
-    	.clk              (clk   	),
+    	.clk              (aclk   	),
     	.resetn           (rst	),  //low active
     	.int              (6'd0		),  //interrupt,high active
 
@@ -147,7 +147,7 @@ module mycpu_top(
 	);
 
 	d_sram2sraml inst_bridge(
-    	.clk(clk),
+    	.clk(aclk),
 		.rst(rst),
     	//sram
     	.data_sram_en   (inst_sram_en		),
@@ -168,7 +168,7 @@ module mycpu_top(
     	.data_data_ok	(inst_data_ok	)
 	);
 	d_sram2sraml data_bridge(
-    	.clk(clk),
+    	.clk(aclk),
 		.rst(rst),
     	//sram
     	.data_sram_en   (data_sram_en		),
